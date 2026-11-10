@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="pt-BR" translate="no">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Pedido - Don Família</title>
+<style>
+*{box-sizing:border-box}
+body{margin:0;background:#e9e9e9;color:#111;font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+.bar{position:sticky;top:0;z-index:5;background:#111;color:#fff;padding:10px;display:flex;gap:8px;flex-wrap:wrap;align-items:center;justify-content:center;font-size:14px}
+.bar button{border:0;border-radius:8px;padding:10px 14px;font-weight:700;font-size:14px;cursor:pointer;background:#FFB800;color:#111}
+.bar button.alt{background:#333;color:#fff}
+.bar button.on{outline:2px solid #FFB800}
+[hidden]{display:none!important}
+.paste{max-width:420px;margin:12px auto 0;padding:12px;background:#fff;border-radius:12px;font-size:14px}.paste textarea{width:100%;min-height:96px;margin:8px 0;padding:8px;border:1px solid #bbb;border-radius:8px;font:13px system-ui,sans-serif}.paste button{border:0;border-radius:8px;padding:10px 14px;font-weight:700;font-size:14px;cursor:pointer;background:#FFB800;color:#111}.paste .pe{color:#b00020;margin-top:6px;font-size:13px}
+.msg{background:#fff3cd;color:#664d03;text-align:center;padding:10px;font-size:13px}
+.err{max-width:420px;margin:40px auto;padding:20px;background:#fff;border-radius:12px;text-align:center}
+.wrap{padding:16px;display:flex;justify-content:center}
+.ticket{background:#fff;width:80mm;max-width:100%;padding:4mm;font-family:"Courier New",Courier,monospace;font-size:12.5px;line-height:1.35;color:#000;box-shadow:0 2px 12px rgba(0,0,0,.25)}
+.ticket.w58{width:58mm;font-size:11.5px}
+.c{text-align:center}.b{font-weight:700}.big{font-size:1.3em}
+.r{display:flex;justify-content:space-between;gap:6px}
+.r span:first-child{flex:1;word-break:break-word}
+.r span:last-child{white-space:nowrap}
+.sep{border-top:1px dashed #000;margin:6px 0}
+@media print{body{background:#fff}.bar,.msg,.paste{display:none!important}.wrap{padding:0}.ticket{box-shadow:none;width:100%;max-width:none;padding:2mm}}
+</style>
+<style id="pg">@page{size:80mm auto;margin:0}</style>
+</head>
+<body>
+<div class="bar" id="bar" hidden>
+<button id="bp">🖨️ Imprimir</button>
+<button id="bd">📄 Baixar PDF</button>
+<button id="bt" class="alt">⬇️ Baixar .txt</button>
+<button id="bs" class="alt">📤 Compartilhar</button>
+<span>Papel:</span>
+<button id="w58" class="alt">58 mm</button>
+<button id="w80" class="alt on">80 mm</button>
+</div>
+<div class="msg" id="ex" hidden>Este é um EXEMPLO. O pedido real chega pelo link enviado no WhatsApp.</div>
+<div class="paste" id="paste" hidden><b>O link não abriu? Cole aqui o texto do pedido</b><br><small>Segure a mensagem no WhatsApp, toque em Copiar e cole abaixo.</small><textarea id="pt" placeholder="Cole aqui a mensagem do pedido"></textarea><button id="pb">Gerar cupom</button><div class="pe" id="pe"></div></div>
+<div class="wrap" id="wrap"><div class="ticket" id="tk"></div></div>
+<script>
+(function(){
+var SHOP={n:'DON FAMÍLIA',s:'Lanchonete e Hamburgueria',a:'Rua Dr. José Ferraz da Silva, 35',b:'Bairro Novo Progresso - Divisópolis/MG',t:'(33) 99941-1635',c:'CNPJ: 68.388.999/0001-21'};
+var $=function(i){return document.getElementById(i)};
+function dec(s){try{s=s.replace(/-/g,'+').replace(/_/g,'/');while(s.length%4)s+='=';var bin=atob(s),u=new Uint8Array(bin.length);for(var i=0;i<bin.length;i++)u[i]=bin.charCodeAt(i);return JSON.parse(new TextDecoder().decode(u))}catch(e){return null}}
+function money(v){return 'R$ '+(Math.round(v*100)/100).toFixed(2).replace('.',',')}
+function pc(s){s=String(s||'').replace(/[^\d,.]/g,'');if(!s)return null;if(s.indexOf(',')>-1)s=s.replace(/\./g,'').replace(',','.');var n=parseFloat(s);return isNaN(n)?null:n}
+var EXEMPLO={v:1,t:Date.now(),n:'Maria Silva',p:'(33) 99999-1234',m:'entrega',a:{s:'Rua das Flores',u:'120',b:'Centro',r:'Casa azul'},g:'Dinheiro',c:'100',f:3,i:[{q:2,n:'Don burguer',p:17,a:[{q:1,n:'Bacon',p:3}]},{q:1,n:'Coca 1 litro',p:12,a:[]}]};
+var o=null,ex=false,code='',dt='',w=80;
+function start(order,isEx){o=order;ex=isEx;code='#'+Math.floor(o.t/1000).toString(36).slice(-4).toUpperCase();dt=new Date(o.t).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'});document.title='Pedido '+code+' - Don Família';$('ex').hidden=!isEx;$('bar').hidden=false;$('wrap').innerHTML='<div class="ticket" id="tk"></div>';render()}
+function parseMsg(raw){var t=String(raw||'').replace(/\r/g,'').replace(/\u00a0/g,' ').replace(/\*/g,''),L=t.split('\n').map(function(s){return s.trim()});
+function g(re){for(var i=0;i<L.length;i++){var m=L[i].match(re);if(m)return m[1].trim()}return ''}
+var n=g(/^Cliente:\s*(.+)$/i),p=g(/^Telefone:\s*(.+)$/i);if(!n||!p)return null;
+var items=[],last=null,inI=false;
+L.forEach(function(s){if(/^PEDIDO$/i.test(s)){inI=true;return}if(!inI)return;
+var m=s.match(/^[-•]\s*(\d+)\s*x\s+(.+?)\s+[—–-]\s+R\$\s*([\d.,]+)$/i);
+if(m){var q=+m[1];last={q:q,n:m[2].trim(),p:Math.round(pc(m[3])/q*100)/100,a:[]};items.push(last);return}
+m=s.match(/^\+\s*(\d+)\s*x\s+(.+?)\s+[—–-]\s+R\$\s*([\d.,]+)$/i);
+if(m&&last){var q2=+m[1];last.a.push({q:q2,n:m[2].trim(),p:Math.round(pc(m[3])/q2*100)/100});return}
+if(/^Subtotal:/i.test(s))inI=false});
+if(!items.length)return null;
+var end=g(/^Endere[cç]o:\s*(.+)$/i),street=end,num='',k=end.lastIndexOf(',');if(k>-1){street=end.slice(0,k).trim();num=end.slice(k+1).trim()}
+var tr=g(/^Troco:\s*(.+)$/i),mt=tr.match(/^para\s+(.+)$/i);
+return {v:1,t:Date.now(),n:n,p:p,m:(/^Entrega$/im.test(t)||end)?'entrega':'retirada',a:{s:street,u:num,b:g(/^Bairro:\s*(.+)$/i),r:g(/^Refer[eê]ncia:\s*(.+)$/i)},g:g(/^Pagamento:\s*(.+)$/i)||'Não informado',c:mt?mt[1]:'',f:pc(g(/^Taxa de entrega:\s*(.+)$/i))||0,i:items}}
+var h=location.hash,fr=location.href.indexOf('#')>-1?location.href.slice(location.href.indexOf('#')+1):'';try{fr=decodeURIComponent(fr)}catch(e){}
+if(!h||h==='#'||h==='#exemplo'){$('paste').hidden=false;start(EXEMPLO,true)}
+else{var mm=fr.match(/(?:^|[?&#])r=([A-Za-z0-9_\-+\/=]+)/),code0=mm?mm[1]:'',c0=code0,ok=null;
+for(var k=0;k<8&&c0.length>20&&!ok;k++){var t0=dec(c0);if(t0&&t0.i&&t0.i.length)ok=t0;else c0=c0.slice(0,-1)}
+if(ok)start(ok,false);
+else{var why=!mm?'o link não tem o código do pedido':'o link chegou cortado ('+code0.length+' caracteres do código)';
+$('wrap').innerHTML='<div class="err"><b>Link do pedido inválido ou incompleto.</b><br><br>Use a caixa acima: cole o texto do pedido que chegou no WhatsApp.<br><br><small style="color:#777">Detalhe técnico: '+why+'</small></div>';$('paste').hidden=false}}
+function build(){var L=[],sub=0;
+L.push({k:'c',t:SHOP.n,b:1,big:1},{k:'c',t:SHOP.s},{k:'c',t:SHOP.a},{k:'c',t:SHOP.b},{k:'c',t:'Tel: '+SHOP.t},{k:'c',t:SHOP.c},{k:'sep'});
+if(ex)L.push({k:'c',t:'*** EXEMPLO - NAO E UM PEDIDO ***',b:1},{k:'sep'});
+L.push({k:'c',t:'PEDIDO '+code,b:1,big:1},{k:'c',t:dt},{k:'sep'});
+L.push({k:'l',t:'Cliente: '+o.n,b:1},{k:'l',t:'Tel: '+o.p});
+if(o.m==='entrega'){L.push({k:'l',t:'ENTREGA',b:1},{k:'l',t:o.a.s+', '+o.a.u},{k:'l',t:'Bairro: '+o.a.b});if(o.a.r)L.push({k:'l',t:'Ref: '+o.a.r})}else L.push({k:'l',t:'RETIRADA NO LOCAL',b:1});
+L.push({k:'sep'},{k:'c',t:'ITENS',b:1});
+o.i.forEach(function(x){var s=x.q*x.p;sub+=s;L.push({k:'r',t:x.q+'x '+x.n,x:money(s),b:1});(x.a||[]).forEach(function(a){var s2=a.q*a.p;sub+=s2;L.push({k:'r',t:'  + '+a.q+'x '+a.n,x:money(s2)})})});
+L.push({k:'sep'},{k:'r',t:'Subtotal',x:money(sub)});
+var f=o.m==='entrega'?(o.f||0):0;if(f)L.push({k:'r',t:'Taxa de entrega',x:money(f)});
+var tot=sub+f;L.push({k:'r',t:'TOTAL',x:money(tot),b:1,big:1},{k:'sep'});
+L.push({k:'l',t:'Pagamento: '+o.g,b:1});
+if(o.g==='Dinheiro'){var c=pc(o.c);L.push({k:'l',t:c?('Troco para '+money(c)+' (levar '+money(Math.max(0,c-tot))+')'):'Sem troco'})}
+L.push({k:'sep'},{k:'c',t:'Obrigado pela preferencia!'});
+return L}
+function render(){var t=$('tk');t.className='ticket'+(w===58?' w58':'');t.innerHTML='';
+build().forEach(function(l){var d=document.createElement('div');
+if(l.k==='sep'){d.className='sep'}
+else if(l.k==='r'){d.className='r'+(l.b?' b':'')+(l.big?' big':'');var a=document.createElement('span'),b=document.createElement('span');a.textContent=l.t.replace(/^ +/,function(m){return m.replace(/ /g,'\u00a0')});b.textContent=l.x;d.appendChild(a);d.appendChild(b)}
+else{d.className=(l.k==='c'?'c ':'')+(l.b?'b ':'')+(l.big?'big':'');d.textContent=l.t}
+t.appendChild(d)});
+$('pg').textContent='@page{size:'+w+'mm auto;margin:0}';
+$('w58').classList.toggle('on',w===58);$('w80').classList.toggle('on',w===80)}
+function asc(s){return s.normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^\x20-\x7E]/g,'')}
+function wrap(s,n){var out=[],cur='';s.split(' ').forEach(function(p){while(p.length>n){if(cur){out.push(cur);cur=''}out.push(p.slice(0,n));p=p.slice(n)}var add=(cur?cur.length+1:0)+p.length;if(add>n&&cur){out.push(cur);cur=p}else cur=(cur?cur+' ':'')+p});if(cur)out.push(cur);return out}
+function txt(){var n=w===58?32:48,o2=[];
+build().forEach(function(l){
+if(l.k==='sep')o2.push(new Array(n+1).join('-'));
+else if(l.k==='c')wrap(asc(l.t),n).forEach(function(x){o2.push(new Array(Math.max(0,Math.floor((n-x.length)/2))+1).join(' ')+x)});
+else if(l.k==='l')wrap(asc(l.t),n).forEach(function(x){o2.push(x)});
+else{var v=asc(l.x),lead=(l.t.match(/^ */)||[''])[0].length,parts=wrap(asc(l.t.trim()),n-v.length-1-lead);parts.forEach(function(x,i){var left=new Array(lead+1).join(' ')+x;if(i===parts.length-1)o2.push(left+new Array(Math.max(1,n-left.length-v.length)+1).join(' ')+v);else o2.push(left)})}});
+return o2.join('\r\n')+'\r\n\r\n\r\n'}
+function clean(s){return String(s).normalize('NFC').replace(/[^\x20-\x7E\u00A0-\u00FF]/g,'')}
+function sp(n){return new Array(Math.max(0,n)+1).join(' ')}
+function pdfRows(n){var R=[];build().forEach(function(l){var big=l.big?1.3:1,m=Math.floor(n/big);
+if(l.k==='sep'){R.push({t:new Array(n+1).join('-'),b:0,s:1});return}
+if(l.k==='c'){wrap(clean(l.t),m).forEach(function(x){R.push({t:sp(Math.floor((m-x.length)/2))+x,b:l.b,s:big})});return}
+if(l.k==='l'){wrap(clean(l.t),m).forEach(function(x){R.push({t:x,b:l.b,s:big})});return}
+var v=clean(l.x),lead=(l.t.match(/^ */)||[''])[0].length,parts=wrap(clean(l.t.trim()),m-v.length-1-lead);
+parts.forEach(function(x,i){var left=sp(lead)+x;R.push({t:i===parts.length-1?left+sp(Math.max(1,m-left.length-v.length))+v:left,b:l.b,s:big})})});return R}
+function pesc(s){var o='';for(var i=0;i<s.length;i++){var c=s.charAt(i),k=s.charCodeAt(i);if(c==='('||c===')'||c==='\\')o+='\\'+c;else if(k>126)o+='\\'+('00'+k.toString(8)).slice(-3);else o+=c}return o}
+function pdfBlob(){var n=w===58?32:48,W=w===58?164.41:226.77,base=7,tw=n*0.6*base,mx=(W-tw)/2,rows=pdfRows(n),y=10,pos=[];
+rows.forEach(function(r){var sz=base*r.s;y+=sz*1.3;pos.push(y)});var H=y+34,cs=[];
+rows.forEach(function(r,i){var sz=base*r.s;cs.push('BT /'+(r.b?'F2':'F1')+' '+sz.toFixed(2)+' Tf '+mx.toFixed(2)+' '+(H-pos[i]).toFixed(2)+' Td ('+pesc(r.t)+') Tj ET')});
+var st=cs.join('\n'),ob=[];
+ob[1]='<< /Type /Catalog /Pages 2 0 R >>';ob[2]='<< /Type /Pages /Kids [3 0 R] /Count 1 >>';
+ob[3]='<< /Type /Page /Parent 2 0 R /MediaBox [0 0 '+W.toFixed(2)+' '+H.toFixed(2)+'] /Resources << /Font << /F1 5 0 R /F2 6 0 R >> >> /Contents 4 0 R >>';
+ob[4]='<< /Length '+st.length+' >>\nstream\n'+st+'\nendstream';
+ob[5]='<< /Type /Font /Subtype /Type1 /BaseFont /Courier /Encoding /WinAnsiEncoding >>';ob[6]='<< /Type /Font /Subtype /Type1 /BaseFont /Courier-Bold /Encoding /WinAnsiEncoding >>';
+var s='%PDF-1.4\n',off=[],i;for(i=1;i<=6;i++){off[i]=s.length;s+=i+' 0 obj\n'+ob[i]+'\nendobj\n'}
+var xr=s.length;s+='xref\n0 7\n0000000000 65535 f \n';for(i=1;i<=6;i++)s+=('0000000000'+off[i]).slice(-10)+' 00000 n \n';
+s+='trailer\n<< /Size 7 /Root 1 0 R /Info << /Title (Pedido Don Familia) >> >>\nstartxref\n'+xr+'\n%%EOF';
+var u=new Uint8Array(s.length);for(i=0;i<s.length;i++)u[i]=s.charCodeAt(i)&255;return new Blob([u],{type:'application/pdf'})}
+$('bd').onclick=function(){var b=pdfBlob(),a=document.createElement('a');a.href=URL.createObjectURL(b);a.download='pedido-'+code.slice(1)+'-'+w+'mm.pdf';document.body.appendChild(a);a.click();setTimeout(function(){URL.revokeObjectURL(a.href);a.remove()},800)};
+$('bp').onclick=function(){window.print()};
+$('bt').onclick=function(){var b=new Blob([txt()],{type:'text/plain;charset=utf-8'}),a=document.createElement('a');a.href=URL.createObjectURL(b);a.download='pedido-'+code.slice(1)+'.txt';document.body.appendChild(a);a.click();setTimeout(function(){URL.revokeObjectURL(a.href);a.remove()},500)};
+$('bs').onclick=function(){try{var f=new File([pdfBlob()],'pedido-'+code.slice(1)+'-'+w+'mm.pdf',{type:'application/pdf'});if(navigator.canShare&&navigator.canShare({files:[f]})){navigator.share({files:[f],title:'Pedido '+code}).catch(function(){});return}}catch(e){}var t=txt();if(navigator.share){navigator.share({title:'Pedido '+code,text:t}).catch(function(){})}else if(navigator.clipboard){navigator.clipboard.writeText(t).then(function(){$('bs').textContent='✔ Copiado'})}};
+$('w58').onclick=function(){w=58;render()};$('w80').onclick=function(){w=80;render()};
+window.__txt=txt;window.__pdf=pdfBlob;window.__o=function(){return o};
+$('pb').onclick=function(){var r=parseMsg($('pt').value);if(!r){$('pe').textContent='Não consegui ler esse texto. Copie a mensagem inteira do pedido (do "NOVO PEDIDO" até o pagamento).';return}$('pe').textContent='';start(r,false);window.scrollTo(0,0)};
+})();
+</script>
+</body>
+</html>
